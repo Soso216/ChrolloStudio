@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sinclair Studio 🐋 | Full Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #080a10; --bg-sidebar: #11141d; --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.3); --text-main: #f1f5f9;
+            --text-muted: #94a3b8; --border: #2e3748; --panel-bg: #1e293b;
+            --pink-deco: #f472b6;
+        }
+
+        * { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
+
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; display: flex; 
+            background-color: var(--bg-deep); margin: 0; height: 100vh; 
+            overflow: hidden; color: var(--text-main); 
+        }
+
+        #starfield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
+
+        /* SIDEBAR */
+        .sidebar { 
+            width: 320px; background: var(--bg-sidebar); padding: 25px; 
+            display: flex; flex-direction: column; gap: 15px; 
+            box-shadow: 10px 0 30px rgba(0,0,0,0.5); z-index: 10; 
+            overflow-y: auto; border-right: 1px solid var(--border);
+        }
+
+        .brand { display: flex; align-items: center; justify-content: center; gap: 10px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
+        .brand h2 { font-size: 1.2rem; font-weight: 800; margin: 0; }
+        .brand h2 span { color: var(--accent); }
+
+        .control-group { background: rgba(255,255,255,0.03); padding: 15px; border-radius: 12px; border: 1px solid var(--border); }
+        .label-row { display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 8px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+        .label-row span.val { color: var(--accent); }
+
+        select, input[type="range"], button { width: 100%; border-radius: 8px; font-family: inherit; }
+        select { background: var(--panel-bg); color: var(--text-main); border: 1px solid var(--border); padding: 10px; cursor: pointer; }
+
+        /* VIEWPORT */
+        .viewport { flex-grow: 1; display: flex; align-items: center; justify-content: center; padding: 20px; position: relative; }
+        .canvas-container { 
+            position: relative; background: white; box-shadow: 0 20px 60px rgba(0,0,0,0.7); 
+            border-radius: 4px; touch-action: none; /* Bloquea gestos del navegador */
+        }
+        canvas { position: absolute; top: 0; left: 0; touch-action: none; cursor: crosshair; }
+
+        /* HUD */
+        #hud-cursor {
+            position: fixed; pointer-events: none; border: 2px solid #fff; border-radius: 50%;
+            transform: translate(-50%, -50%); z-index: 10000; mix-blend-mode: difference; display: none;
+        }
+
+        /* LAYERS */
+        .layer-item { display: flex; justify-content: space-between; padding: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); margin-top: 5px; border-radius: 8px; cursor: pointer; }
+        .layer-item.active { border-color: var(--accent); background: rgba(56, 189, 248, 0.1); }
+
+        button { cursor: pointer; background: var(--accent); color: #000; border: none; font-weight: 700; padding: 12px; transition: 0.2s; }
+        .btn-danger { background: #331c20; color: #f87171; border: 1px solid #552b31; }
+
+        /* Responsive Mobile */
+        @media (max-width: 768px) {
+            .sidebar { width: 80px; padding: 10px; }
+            .brand h2, .label-row, #searchBrush, #addLayerBtn, .layer-item span { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="starfield"></canvas>
+<div id="hud-cursor"></div>
+
+<aside class="sidebar">
+    <div class="brand"><span>🐋</span><h2>Sinclair <span>Studio</span></h2></div>
+    
+    <input type="text" id="searchBrush" style="padding:10px; background:var(--panel-bg); color:white; border:1px solid var(--border); border-radius:8px;" placeholder="Buscar...">
+
+    <div class="control-group">
+        <div class="label-row">Pincel</div>
+        <select id="brushType">
+            <optgroup label="🦆 Duck Style">
+                <option value="k_pencil">Lápiz Grafito HB</option>
+                <option value="k_watercolor">Acuarela Fluida</option>
+                <option value="k_ink">Tinta Sumi-e</option>
+                <option value="k_splatter">Salpicadura</option>
+            </optgroup>
+            <optgroup label="✨ Efectos">
+                <option value="e_neon">Neón Incandescente</option>
+                <option value="e_rainbow">Arcoíris</option>
+                <option value="e_sparkle">Destellos ✨</option>
+                <option value="e_bokeh">Bokeh</option>
+            </optgroup>
+            <optgroup label="🧹 Sistema">
+                <option value="s_round">Redondo Básico</option>
+                <option value="s_eraser">Borrador Duro</option>
+            </optgroup>
+        </select>
+    </div>
+
+    <div class="control-group">
+        <div class="label-row">Tamaño <span id="sizeVal" class="val">30px</span></div>
+        <input type="range" id="sizeRange" min="1" max="200" value="30">
+        <div class="label-row" style="margin-top:10px;">Opacidad <span id="opacityVal" class="val">100%</span></div>
+        <input type="range" id="opacityRange" min="1" max="100" value="100">
+        <input type="color" id="colorPicker" value="#38bdf8" style="margin-top:10px; height:40px; cursor:pointer;">
+    </div>
+
+    <div class="control-group">
+        <div class="label-row">Capas</div>
+        <button id="addLayerBtn" style="background:var(--pink-deco); color:white;">+ Nueva Capa</button>
+        <div id="layerStack"></div>
+    </div>
+
+    <div style="margin-top:auto; display:flex; flex-direction:column; gap:5px;">
+        <button id="downloadBtn">Guardar Arte 📥</button>
+        <button id="clearBtn" class="btn-danger">Limpiar Capa</button>
+    </div>
+</aside>
+
+<main class="viewport">
+    <div class="canvas-container" id="container" style="width: 900px; height: 700px;"></div>
+</main>
+
+<script>
+    const container = document.getElementById('container');
+    const layerStackUI = document.getElementById('layerStack');
+    const brushSelect = document.getElementById('brushType');
+    const colorPicker = document.getElementById('colorPicker');
+    const sizeRange = document.getElementById('sizeRange');
+    const opacityRange = document.getElementById('opacityRange');
+    const hudCursor = document.getElementById('hud-cursor');
+
+    let layers = [];
+    let activeIdx = 0;
+    let isDrawing = false;
+    let lastX = 0, lastY = 0, lastTime = 0;
+    const W = 900, H = 700;
+
+    // --- ESTRELLAS ---
+    const starCanvas = document.getElementById('starfield');
+    const starCtx = starCanvas.getContext('2d');
+    let stars = [];
+    function resizeStars() { starCanvas.width = window.innerWidth; starCanvas.height = window.innerHeight; }
+    class Star {
+        constructor() { this.reset(); }
+        reset() { this.x = Math.random() * starCanvas.width; this.y = Math.random() * -starCanvas.height; this.size = Math.random() * 2; this.speed = Math.random() * 0.5 + 0.1; this.alpha = Math.random() * 0.5 + 0.2; }
+        update() { this.y += this.speed; if (this.y > starCanvas.height) this.reset(); }
+        draw() { starCtx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`; starCtx.beginPath(); starCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2); starCtx.fill(); }
+    }
+    function initStars() { resizeStars(); for(let i=0; i<150; i++) stars.push(new Star()); }
+    function animateStars() { starCtx.clearRect(0,0,starCanvas.width, starCanvas.height); stars.forEach(s => { s.update(); s.draw(); }); requestAnimationFrame(animateStars); }
+    window.addEventListener('resize', resizeStars); initStars(); animateStars();
+
+    // --- SISTEMA DE CAPAS ---
+    function createLayer(name = `Capa ${layers.length + 1}`, isBase = false) {
+        const canvas = document.createElement('canvas');
+        canvas.width = W; canvas.height = H;
+        container.appendChild(canvas);
+        const ctx = canvas.getContext('2d');
+        if (isBase) { ctx.fillStyle = 'white'; ctx.fillRect(0,0,W,H); }
+        layers.push({ canvas, ctx, name, visible: true });
+        selectLayer(layers.length - 1);
+    }
+    function selectLayer(idx) {
+        activeIdx = idx;
+        layers.forEach((l, i) => l.canvas.style.pointerEvents = (i === activeIdx) ? 'auto' : 'none');
+        renderUI();
+    }
+    function renderUI() {
+        layerStackUI.innerHTML = '';
+        layers.slice().reverse().forEach((l, i) => {
+            const realIdx = layers.length - 1 - i;
+            const div = document.createElement('div');
+            div.className = `layer-item ${realIdx === activeIdx ? 'active' : ''}`;
+            div.innerHTML = `<span>${l.name}</span>`;
+            div.onclick = () => selectLayer(realIdx);
+            layerStackUI.appendChild(div);
+        });
+    }
+
+    // --- COORDENADAS PRECISAS (Tactil + Mouse) ---
+    function getMousePos(e) {
+        const rect = container.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: clientX - rect.left, y: clientY - rect.top, cx: clientX, cy: clientY };
+    }
+
+    function updateHudCursor(e) {
+        const pos = getMousePos(e);
+        const size = sizeRange.value;
+        hudCursor.style.display = 'block';
+        hudCursor.style.width = size + 'px';
+        hudCursor.style.height = size + 'px';
+        hudCursor.style.left = pos.cx + 'px';
+        hudCursor.style.top = pos.cy + 'px';
+    }
+
+    function start(e) {
+        if (layers.length === 0) return;
+        isDrawing = true;
+        const pos = getMousePos(e);
+        lastX = pos.x; lastY = pos.y; lastTime = Date.now();
+        draw(e);
+    }
+
+    function draw(e) {
+        if (!isDrawing) { if(!e.touches) updateHudCursor(e); return; }
+        updateHudCursor(e);
+        const pos = getMousePos(e);
+        const { ctx } = layers[activeIdx];
+        const now = Date.now();
+        const dist = Math.hypot(pos.x - lastX, pos.y - lastY);
+        const speed = dist / (now - lastTime || 1);
+        
+        const bSize = parseInt(sizeRange.value);
+        const bColor = colorPicker.value;
+        const bOpacity = parseInt(opacityRange.value) / 100;
+
+        ctx.save();
+        ctx.globalAlpha = bOpacity;
+        ctx.strokeStyle = bColor;
+        ctx.fillStyle = bColor;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        const type = brushSelect.value;
+        
+        // --- LOGICA DE PINCELES ---
+        switch(type) {
+            case 'k_pencil':
+                ctx.globalAlpha = 0.4 * bOpacity;
+                ctx.lineWidth = Math.max(1, bSize * 0.3);
+                ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+                break;
+            case 'k_watercolor':
+                ctx.globalAlpha = 0.05 * bOpacity;
+                ctx.shadowBlur = bSize/2; ctx.shadowColor = bColor;
+                ctx.beginPath(); ctx.arc(pos.x, pos.y, bSize/2, 0, Math.PI*2); ctx.fill();
+                break;
+            case 'k_ink':
+                ctx.lineWidth = Math.max(1, bSize - speed * 2);
+                ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+                break;
+            case 'e_neon':
+                ctx.shadowBlur = 15; ctx.shadowColor = bColor; ctx.lineWidth = bSize/3;
+                ctx.strokeStyle = 'white';
+                ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+                break;
+            case 'e_rainbow':
+                ctx.strokeStyle = `hsl(${(now/10) % 360}, 80%, 60%)`;
+                ctx.lineWidth = bSize;
+                ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+                break;
+            case 'e_sparkle':
+                if(Math.random() > 0.9) {
+                    ctx.font = `${bSize}px serif`;
+                    ctx.fillText("✨", pos.x, pos.y);
+                }
+                break;
+            case 'e_bokeh':
+                ctx.globalAlpha = 0.2 * bOpacity;
+                ctx.beginPath(); ctx.arc(pos.x + (Math.random()-0.5)*20, pos.y + (Math.random()-0.5)*20, Math.random()*bSize/2, 0, Math.PI*2); ctx.fill();
+                break;
+            case 's_eraser':
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.lineWidth = bSize;
+                ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+                break;
+            default:
+                ctx.lineWidth = bSize;
+                ctx.beginPath(); ctx.moveTo(lastX, lastY); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+        }
+
+        ctx.restore();
+        lastX = pos.x; lastY = pos.y; lastTime = now;
+    }
+
+    // --- EVENTOS TACTILES ---
+    const stopScroll = (e) => { if (e.target.tagName === 'CANVAS') e.preventDefault(); };
+    container.addEventListener('touchstart', (e) => { stopScroll(e); start(e); }, { passive: false });
+    window.addEventListener('touchmove', (e) => { stopScroll(e); draw(e); }, { passive: false });
+    window.addEventListener('touchend', () => isDrawing = false);
+
+    // --- EVENTOS MOUSE ---
+    container.addEventListener('mousedown', start);
+    window.addEventListener('mousemove', draw);
+    window.addEventListener('mouseup', () => isDrawing = false);
+
+    // UI Control
+    sizeRange.oninput = () => document.getElementById('sizeVal').innerText = sizeRange.value + 'px';
+    opacityRange.oninput = () => document.getElementById('opacityVal').innerText = opacityRange.value + '%';
+    document.getElementById('addLayerBtn').onclick = () => createLayer();
+    document.getElementById('clearBtn').onclick = () => { if(confirm("¿Limpiar capa?")) layers[activeIdx].ctx.clearRect(0,0,W,H); };
+    document.getElementById('downloadBtn').onclick = () => {
+        const final = document.createElement('canvas'); final.width = W; final.height = H;
+        const fctx = final.getContext('2d');
+        layers.forEach(l => fctx.drawImage(l.canvas, 0, 0));
+        const link = document.createElement('a'); link.download = 'sinclair-art.png'; link.href = final.toDataURL(); link.click();
+    };
+
+    createLayer('Papel Base', true);
+</script>
+</body>
+</html>
